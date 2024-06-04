@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type Task struct {
@@ -49,11 +50,13 @@ func getAllTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	if _, err := w.Write(resp); err != nil {
+		fmt.Printf("Ошибка при записи ответа: %v\n", err)
+	}
 }
 
 // обработчик для отправки задачи на сервер
-func postTask(w http.ResponseWriter, r *http.Request) {
+func addTask(w http.ResponseWriter, r *http.Request) {
 	var task Task
 	var buf bytes.Buffer
 
@@ -68,6 +71,18 @@ func postTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if task.ID == "" {
+		task.ID = uuid.New().String()
+	}
+
+	if len(task.Applications) == 0 {
+		task.Applications = []string{r.Header.Get("User-Agent")}
+	}
+
+	if _, exists := tasks[task.ID]; exists {
+		http.Error(w, "Задача с таким ID уже существует", http.StatusBadRequest)
+		return
+	}
 	tasks[task.ID] = task
 
 	w.Header().Set("Content-Type", "application/json")
@@ -80,7 +95,7 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 
 	task, ok := tasks[id]
 	if !ok {
-		http.Error(w, "Задача не найдена", http.StatusNotFound)
+		http.Error(w, "Задача не найдена", http.StatusBadRequest)
 		return
 	}
 
@@ -92,7 +107,9 @@ func getTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	if _, err := w.Write(resp); err != nil {
+		fmt.Printf("Ошибка при записи ответа: %v\n", err)
+	}
 }
 
 // обработчик удаления задачи по ID
@@ -101,7 +118,7 @@ func deleteTask(w http.ResponseWriter, r *http.Request) {
 
 	task, ok := tasks[id]
 	if !ok {
-		http.Error(w, "Задача не найдена", http.StatusNotFound)
+		http.Error(w, "Задача не найдена", http.StatusBadRequest)
 		return
 	}
 
@@ -115,14 +132,16 @@ func deleteTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	if _, err := w.Write(resp); err != nil {
+		fmt.Printf("Ошибка при записи ответа: %v\n", err)
+	}
 }
 
 func main() {
 	r := chi.NewRouter()
 
 	r.Get("/tasks", getAllTasks)
-	r.Post("/tasks", postTask)
+	r.Post("/tasks", addTask)
 	r.Get("/tasks/{id}", getTask)
 	r.Delete("/tasks/{id}", deleteTask)
 
